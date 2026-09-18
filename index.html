@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لعبة التقاط العملات - اربح واسحب</title>
+    <!-- مكتبة Ethers.js للربط مع المحافظ الرقمية -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background: linear-gradient(135deg, #1e1e2f, #0f0c29);
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        .header {
+            width: 90%;
+            max-width: 500px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .btn {
+            background: #f39c12;
+            color: #fff;
+            border: none;
+            padding: 10px 18px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .btn:hover {
+            background: #d68910;
+        }
+        .btn:disabled {
+            background: #7f8c8d;
+            cursor: not-allowed;
+        }
+        .dashboard {
+            width: 90%;
+            max-width: 500px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        #gameCanvas {
+            background: #242b3d;
+            border: 2px solid #f39c12;
+            border-radius: 12px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+            touch-action: none;
+        }
+        .controls {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+        #status-msg {
+            margin-top: 10px;
+            font-size: 13px;
+            color: #2ecc71;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- رأس الصفحة -->
+    <div class="header">
+        <h2>💰 صائد العملات</h2>
+        <button id="connectBtn" class="btn" onclick="connectWallet()">ربط المحفظة</button>
+    </div>
+
+    <!-- لوحة التحكم بالرصيد -->
+    <div class="dashboard">
+        <p>عنوان محفظتك: <span id="walletAddress" style="color: #3498db;">غير متصلة</span></p>
+        <h3 style="margin-top: 8px;">الرصيد القابل للسحب: <span id="scoreText" style="color: #f1c40f;">0</span> نقطة</h3>
+        <p style="font-size: 12px; color: #bdc3c7; margin-top: 5px;">(كل 10 نقاط = رصيد حقيقي)</p>
+        <button id="withdrawBtn" class="btn" style="margin-top: 10px; background: #27ae60;" onclick="requestWithdrawal()" disabled>طلب سحب الأرباح</button>
+        <div id="status-msg"></div>
+    </div>
+
+    <!-- لوحة اللعبة -->
+    <canvas id="gameCanvas" width="360" height="420"></canvas>
+
+    <div class="controls">
+        <button class="btn" onclick="startGame()" id="startBtn">بدء اللعبة</button>
+    </div>
+
+    <script>
+        // ==========================
+        // 1. منطق ربط المحفظة (Web3)
+        // ==========================
+        let userAddress = null;
+        let provider = null;
+        let signer = null;
+        let score = 0;
+
+        async function connectWallet() {
+            if (window.ethereum) {
+                try {
+                    provider = new ethers.BrowserProvider(window.ethereum);
+                    const accounts = await provider.send("eth_requestAccounts", []);
+                    signer = await provider.getSigner();
+                    userAddress = accounts[0];
+                    
+                    // اختصار العنوان للعرض
+                    const shortAddr = userAddress.substring(0, 6) + "..." + userAddress.substring(userAddress.length - 4);
+                    document.getElementById('walletAddress').innerText = shortAddr;
+                    document.getElementById('connectBtn').innerText = "متصلة ✅";
+                    document.getElementById('connectBtn').disabled = true;
+                    
+                    checkWithdrawStatus();
+                    showStatus("تم ربط المحفظة بنجاح!");
+                } catch (error) {
+                    console.error(error);
+                    showStatus("فشل الاتصال بالمحفظة.", true);
+                }
+            } else {
+                alert("يرجى تثبيت إضافة MetaMask أو فتح اللعبة من داخل متصفح المحفظة!");
+            }
+        }
+
+        function checkWithdrawStatus() {
+            if (userAddress && score >= 10) {
+                document.getElementById('withdrawBtn').disabled = false;
+            } else {
+                document.getElementById('withdrawBtn').disabled = true;
+            }
+        }
+
+        async function requestWithdrawal() {
+            if (!userAddress) return alert("يرجى ربط محفظتك أولاً!");
+            if (score < 10) return alert("يجب أن تجمع 10 نقاط على الأقل للسحب!");
+
+            showStatus("جاري معالجة السحب إلى محفظتك...");
+
+            // في البيئة الحقيقية (Production):
+            // ترسل النقاط لسيرفرك (Node.js/Python)، والسيرفر يدفع للعنوان تلقائياً عبر Smart Contract أو API
+            setTimeout(() => {
+                showStatus(`تم بنجاح إرسال الأرباح إلى العنوان: ${userAddress}`);
+                score = 0;
+                document.getElementById('scoreText').innerText = score;
+                checkWithdrawStatus();
+            }, 2000);
+        }
+
+        function showStatus(msg, isError = false) {
+            const el = document.getElementById('status-msg');
+            el.innerText = msg;
+            el.style.color = isError ? "#e74c3c" : "#2ecc71";
+        }
+
+        // ==========================
+        // 2. محرك اللعبة (Game Engine)
+        // ==========================
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let player = { x: 150, y: 380, width: 60, height: 15, speed: 6 };
+        let coins = [];
+        let isPlaying = false;
+        let gameInterval;
+        let spawnInterval;
+
+        function drawPlayer() {
+            ctx.fillStyle = "#3498db";
+            ctx.beginPath();
+            ctx.roundRect(player.x, player.y, player.width, player.height, [8]);
+            ctx.fill();
+        }
+
+        function spawnCoin() {
+            const x = Math.random() * (canvas.width - 20);
+            coins.push({ x: x, y: 0, radius: 10, speed: 3 + Math.random() * 2 });
+        }
+
+        function updateCoins() {
+            for (let i = 0; i < coins.length; i++) {
+                coins[i].y += coins[i].speed;
+
+                // رسم العملة
+                ctx.fillStyle = "#f1c40f";
+                ctx.beginPath();
+                ctx.arc(coins[i].x, coins[i].y, coins[i].radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // التحقق من الالتقاط
+                if (
+                    coins[i].y + coins[i].radius >= player.y &&
+                    coins[i].x >= player.x &&
+                    coins[i].x <= player.x + player.width
+                ) {
+                    score += 1;
+                    document.getElementById('scoreText').innerText = score;
+                    checkWithdrawStatus();
+                    coins.splice(i, 1);
+                    i--;
+                    continue;
+                }
+
+                // الحذف إذا تجاوزت الشاشة
+                if (coins[i].y > canvas.height) {
+                    coins.splice(i, 1);
+                    i--;
+                }
+            }
+        }
+
+        function gameLoop() {
+            if (!isPlaying) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawPlayer();
+            updateCoins();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            if (isPlaying) return;
+            isPlaying = true;
+            coins = [];
+            document.getElementById('startBtn').innerText = "اللعبة قيد التشغيل...";
+            document.getElementById('startBtn').disabled = true;
+
+            spawnInterval = setInterval(spawnCoin, 900);
+            gameLoop();
+        }
+
+        // التحكم بحركة اللاعب (الماوس أو اللمس)
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            let mouseX = e.clientX - rect.left;
+            player.x = mouseX - player.width / 2;
+            // حصر الحركة داخل الشاشة
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            let touchX = e.touches[0].clientX - rect.left;
+            player.x = touchX - player.width / 2;
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+        });
+    </script>
+</body>
+</html>
